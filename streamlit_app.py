@@ -137,6 +137,10 @@ def savet(df):
         return False
 
 def dash(df):
+    if df is None or len(df) == 0:
+        st.info("📤 No customer data available yet")
+        return
+    
     st.header("📊 Dashboard")
     st.markdown("---")
     t = df['Amount Due'].sum()
@@ -246,10 +250,29 @@ def main():
         st.markdown("---")
         st.success("⚡ **Fast!**\n\n✅ No locks\n✅ Progress")
     if load()[0] is None:
-        st.info("👆 Upload Excel")
+        st.info("👆 Upload Excel to start")
+        st.markdown("""
+        ### 🚀 Features:
+        - ✅ Fast Excel processing
+        - ✅ Phone normalization (removes 91)
+        - ✅ Duplicate handling
+        - ✅ Complete dashboard
+        - ✅ Payment tracking
+        - ✅ No database locks
+        """)
         return
-    if 'pd' not in st.session_state:
-        st.session_state.pd = initpd()
+    
+    # Initialize payment data
+    if 'pd' not in st.session_state or st.session_state.pd is None:
+        with st.spinner("Loading customer data..."):
+            st.session_state.pd = initpd()
+    
+    # Check if data loaded successfully
+    if st.session_state.pd is None:
+        st.warning("⚠️ No data available. Please upload Excel file.")
+        return
+    
+    # Now safe to show tabs
     t1,t2 = st.tabs(["📊 Dashboard","📋 Tracking"])
     with t1:
         dash(st.session_state.pd)
