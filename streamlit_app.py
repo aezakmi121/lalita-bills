@@ -192,38 +192,57 @@ def main():
         if r is not None:
             st.success("✅ Loaded")
             st.info(f"📊 {len(r)} trans\n👥 {r['phone'].nunique()} cust")
-        f = st.file_uploader("Excel", type=['xlsx','xls'])
-        if f:
+        f = st.file_uploader("Excel", type=['xlsx','xls'], key='excel_upload')
+        
+        # Process only if file AND not already processed
+        if f and 'last_upload' not in st.session_state or (f and st.session_state.get('last_upload') != f.name):
             try:
                 with st.spinner("Processing..."):
                     s = st.empty()
-                    s.info("Reading...")
+                    s.info("📖 Reading Excel...")
                     dr = pd.read_excel(f, sheet_name='receipts',
                                       usecols=['ReceiptId','Date','CustomerName','CustomerNumber','Total','PaymentMode'])
                     di = pd.read_excel(f, sheet_name='receiptsWithItems',
                                       usecols=['ReceiptId','EntryType','EntryName','EntryAmount'])
-                    s.info("Normalizing...")
+                    s.info("🔧 Normalizing phones...")
                     dr['CustomerNumber'] = dr['CustomerNumber'].apply(norm)
-                    s.info("Filtering...")
+                    s.info("🔍 Filtering credit transactions...")
                     dr = dr[dr['PaymentMode']=='Credit']
                     di = di[di['ReceiptId'].isin(dr['ReceiptId']) & (di['EntryType']=='Item')]
                     s.empty()
+                    
                     if save(dr,di):
+                        # Mark this file as processed
+                        st.session_state.last_upload = f.name
+                        st.session_state.pd = None  # Clear old data
                         load.clear()
-                        st.success(f"✅ {len(dr)} trans!")
+                        st.success(f"✅ Successfully processed {len(dr)} transactions!")
+                        st.info("👇 Click 'Refresh View' below to see your data")
                         st.balloons()
-                        st.rerun()
             except Exception as e:
-                st.error(str(e))
+                st.error(f"❌ Error: {str(e)}")
+                st.info("💡 Make sure your Excel has 'receipts' and 'receiptsWithItems' sheets")
+        
+        # Refresh button
         if r is not None:
             st.markdown("---")
-            if st.button("🗑️ Clear"):
-                with db() as c:
-                    c.execute('DELETE FROM receipts')
-                    c.execute('DELETE FROM items')
-                    c.execute('DELETE FROM tracking')
-                load.clear()
-                st.rerun()
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Refresh View", use_container_width=True):
+                    st.session_state.pd = None
+                    load.clear()
+                    st.rerun()
+            with col2:
+                if st.button("🗑️ Clear All", use_container_width=True):
+                    with db() as c:
+                        c.execute('DELETE FROM receipts')
+                        c.execute('DELETE FROM items')
+                        c.execute('DELETE FROM tracking')
+                    st.session_state.pd = None
+                    st.session_state.last_upload = None
+                    load.clear()
+                    st.success("Cleared!")
+                    st.rerun()
         st.markdown("---")
         st.success("⚡ **Fast!**\n\n✅ No locks\n✅ Progress")
     if load()[0] is None:
